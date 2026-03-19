@@ -14,12 +14,12 @@ import (
 type Executor struct {
 	queue      *job.Queue
 	s3         *transfer.S3Client
-	meta       *metadata.Client // nil if Engram is not configured
+	meta       metadata.Provider // nil if no metadata provider configured
 	maxRetries int
 	log        *slog.Logger
 }
 
-func NewExecutor(queue *job.Queue, s3 *transfer.S3Client, meta *metadata.Client, maxRetries int, log *slog.Logger) *Executor {
+func NewExecutor(queue *job.Queue, s3 *transfer.S3Client, meta metadata.Provider, maxRetries int, log *slog.Logger) *Executor {
 	return &Executor{
 		queue:      queue,
 		s3:         s3,

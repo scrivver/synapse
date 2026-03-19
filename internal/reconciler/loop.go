@@ -10,14 +10,14 @@ import (
 )
 
 type Reconciler struct {
-	meta     *metadata.Client
+	meta     metadata.Provider
 	queue    *job.Queue
 	rules    []Rule
 	interval time.Duration
 	log      *slog.Logger
 }
 
-func New(meta *metadata.Client, queue *job.Queue, rules []Rule, interval time.Duration, log *slog.Logger) *Reconciler {
+func New(meta metadata.Provider, queue *job.Queue, rules []Rule, interval time.Duration, log *slog.Logger) *Reconciler {
 	return &Reconciler{
 		meta:     meta,
 		queue:    queue,

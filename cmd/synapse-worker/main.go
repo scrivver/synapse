@@ -38,9 +38,9 @@ func main() {
 	}
 	log.Info("S3 client ready", "endpoint", cfg.S3Endpoint)
 
-	var meta *metadata.Client
+	var meta metadata.Provider
 	if cfg.EngramAPIURL != "" {
-		meta = metadata.NewClient(cfg.EngramAPIURL)
+		meta = metadata.NewEngramClient(cfg.EngramAPIURL)
 		log.Info("metadata client configured", "url", cfg.EngramAPIURL)
 	} else {
 		log.Info("no ENGRAM_API_URL set, metadata updates disabled")

@@ -30,7 +30,7 @@ func main() {
 	defer queue.Close()
 	log.Info("connected to RabbitMQ", "url", cfg.RabbitMQURL)
 
-	meta := metadata.NewClient(cfg.EngramAPIURL)
+	meta := metadata.NewEngramClient(cfg.EngramAPIURL)
 	log.Info("metadata client configured", "url", cfg.EngramAPIURL)
 
 	rules := reconciler.DefaultRules(cfg.HotBucket, cfg.ColdBucket)
