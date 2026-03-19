@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -z "${DATA_DIR:-}" ]; then
+  echo "ERROR: DATA_DIR is not set. Are you in the dev shell? (nix develop)" >&2
+  exit 1
+fi
+
+SESSION="synapse"
+
+# Kill existing session if any.
+tmux kill-session -t "$SESSION" 2>/dev/null || true
+
+# Create tmux session with infra in the first window.
+tmux new-session -d -s "$SESSION" -n infra
+tmux send-keys -t "$SESSION:infra" "start-infra" Enter
+
+echo "Waiting for infra to be ready..."
+for i in $(seq 1 30); do
+  if [ -f "$RABBITMQ_AMQP_PORT_FILE" ] && [ -f "$MINIO_API_PORT_FILE" ]; then
+    break
+  fi
+  sleep 1
+done
+
+if [ ! -f "$RABBITMQ_AMQP_PORT_FILE" ]; then
+  echo "ERROR: Infra failed to start within 30s" >&2
+  exit 1
+fi
+
+source load-infra-env
+
+# Start reconciler window.
+start-reconciler
+
+# Start worker window.
+start-worker
+
+# Select worker window and attach.
+tmux select-window -t "$SESSION:worker" 2>/dev/null || true
+exec tmux attach-session -t "$SESSION"

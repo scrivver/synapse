@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -z "${DATA_DIR:-}" ]; then
+  echo "ERROR: DATA_DIR is not set. Are you in the dev shell? (nix develop)" >&2
+  exit 1
+fi
+
+source load-infra-env
+
+echo "=== Publishing test move_file job to synapse.jobs ==="
+
+# Create a test file in the hot bucket
+TEST_FILE="test-$(date +%s).txt"
+echo "This is a test file for synapse transfer." > "/tmp/$TEST_FILE"
+
+MC_ALIAS="http://127.0.0.1:$MINIO_API_PORT"
+mc alias set synapse-test "$MC_ALIAS" minioadmin minioadmin --api S3v4 2>/dev/null
+mc cp "/tmp/$TEST_FILE" "synapse-test/$S3_HOT_BUCKET/$TEST_FILE"
+rm -f "/tmp/$TEST_FILE"
+
+echo "  Uploaded $TEST_FILE to $S3_HOT_BUCKET"
+
+# Publish a move_file job to RabbitMQ
+JOB_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
+JOB_PAYLOAD=$(python3 -c "
+import json
+print(json.dumps({
+    'job_id': '$JOB_ID',
+    'type': 'move_file',
+    'payload': {
+        'file_id': '$TEST_FILE',
+        'from': '$S3_HOT_BUCKET',
+        'to': '$S3_COLD_BUCKET'
+    },
+    'retry': 0
+}))
+")
+
+python3 -c "
+import pika
+conn = pika.BlockingConnection(pika.ConnectionParameters('127.0.0.1', $RABBITMQ_AMQP_PORT))
+ch = conn.channel()
+ch.basic_publish(exchange='amq.direct', routing_key='synapse.jobs', body='''$JOB_PAYLOAD''')
+conn.close()
+print('  Job published: $JOB_ID')
+"
+
+echo ""
+echo "=== Checking job queue ==="
+curl -sf -u guest:guest "http://127.0.0.1:$RABBITMQ_MGMT_PORT/api/queues/%2F/synapse.jobs" \
+  | python3 -c "import sys,json; q=json.load(sys.stdin); print(f'  synapse.jobs: {q[\"messages\"]} messages ({q[\"messages_ready\"]} ready)')"
+
+echo ""
+echo "Test job submitted. Check the worker logs for processing."
