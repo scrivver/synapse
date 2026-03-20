@@ -2,6 +2,8 @@
 
 The reconciliation engine for the mind palace. Synapse moves data across storage nodes based on metadata-defined conditions, ensuring files are always in the right place.
 
+> “Every movement leaves a trace; make yours worth following.”
+
 ## Architecture
 
 ```
