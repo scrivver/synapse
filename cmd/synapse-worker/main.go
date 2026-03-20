@@ -10,6 +10,7 @@ import (
 	"github.com/chunhou/synapse/internal/config"
 	"github.com/chunhou/synapse/internal/event"
 	"github.com/chunhou/synapse/internal/job"
+	"github.com/chunhou/synapse/internal/metadata"
 	"github.com/chunhou/synapse/internal/transfer"
 	"github.com/chunhou/synapse/internal/worker"
 )
@@ -49,8 +50,9 @@ func main() {
 		emitter = em
 		log.Info("event emitter: engram", "exchange", cfg.EngramExchange, "routing_key", cfg.EngramRoutingKey)
 	} else {
-		emitter = event.NewLogFileEmitter(cfg.EventLogFile)
-		log.Info("event emitter: log file", "path", cfg.EventLogFile)
+		meta := metadata.NewJSONFileProvider(cfg.MetadataFile)
+		emitter = event.NewDevEmitter(cfg.EventLogFile, meta)
+		log.Info("event emitter: dev", "log", cfg.EventLogFile, "metadata", cfg.MetadataFile)
 	}
 
 	executor := worker.NewExecutor(queue, s3, emitter, cfg.MaxRetries, log)
