@@ -71,6 +71,32 @@ func (p *JSONFileProvider) AddLocation(_ context.Context, fileID, location strin
 	return p.writeAll(files)
 }
 
+func (p *JSONFileProvider) RemoveLocation(_ context.Context, fileID, location string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	files, err := p.readAll()
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i := range files {
+		if files[i].ID == fileID {
+			files[i].Locations = slices.DeleteFunc(files[i].Locations, func(l string) bool {
+				return l == location
+			})
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("file %s not found", fileID)
+	}
+
+	return p.writeAll(files)
+}
+
 func (p *JSONFileProvider) readAll() ([]File, error) {
 	data, err := os.ReadFile(p.path)
 	if err != nil {

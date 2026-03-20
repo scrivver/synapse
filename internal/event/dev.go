@@ -25,6 +25,9 @@ func (e *DevEmitter) EmitMoveCompleted(ctx context.Context, evt MoveCompleted) e
 	if err := e.log.EmitMoveCompleted(ctx, evt); err != nil {
 		return err
 	}
+	if err := e.meta.RemoveLocation(ctx, evt.FileID, evt.From); err != nil {
+		return err
+	}
 	return e.meta.AddLocation(ctx, evt.FileID, evt.To)
 }
 

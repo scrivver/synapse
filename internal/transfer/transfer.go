@@ -65,6 +65,14 @@ func (s *S3Client) MoveFile(ctx context.Context, fileID, srcBucket, dstBucket st
 		if err := s.verify(ctx, fileID, srcBucket, dstBucket); err != nil {
 			return fmt.Errorf("verify existing: %w", err)
 		}
+		// Verified at destination — clean up source if it still exists.
+		srcExists, _ := s.Exists(ctx, srcBucket, fileID)
+		if srcExists {
+			if err := s.client.RemoveObject(ctx, srcBucket, fileID, minio.RemoveObjectOptions{}); err != nil {
+				return fmt.Errorf("remove source %s/%s: %w", srcBucket, fileID, err)
+			}
+			log.Info("removed source after verification")
+		}
 		log.Info("checksum verified, skipping transfer")
 		return nil
 	}
@@ -122,6 +130,11 @@ func (s *S3Client) MoveFile(ctx context.Context, fileID, srcBucket, dstBucket st
 	if srcChecksum != dstChecksum {
 		_ = s.client.RemoveObject(ctx, dstBucket, fileID, minio.RemoveObjectOptions{})
 		return fmt.Errorf("checksum mismatch: src=%s dst=%s", srcChecksum, dstChecksum)
+	}
+
+	// Remove source after successful verified transfer.
+	if err := s.client.RemoveObject(ctx, srcBucket, fileID, minio.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("remove source %s/%s: %w", srcBucket, fileID, err)
 	}
 
 	log.Info("transfer complete", "checksum", srcChecksum, "size", srcInfo.Size)
