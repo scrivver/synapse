@@ -19,6 +19,8 @@ pkgs.mkShell {
     mkdir -p "$DATA_DIR"
     mkdir -p "$DATA_DIR/rabbitmq"
     mkdir -p "$DATA_DIR/minio"
+    mkdir -p "$DATA_DIR/storage/synapse-hot"
+    mkdir -p "$DATA_DIR/storage/synapse-cold"
 
     # Generate process-compose config
     cp -f ${processComposeConfig} "$DATA_DIR/process-compose.yaml"

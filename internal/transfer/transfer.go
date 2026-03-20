@@ -142,19 +142,23 @@ func (s *S3Client) MoveFile(ctx context.Context, fileID, srcBucket, dstBucket st
 }
 
 // ListObjects returns all objects in a bucket.
-func (s *S3Client) ListObjects(ctx context.Context, bucket string) ([]minio.ObjectInfo, error) {
-	var objects []minio.ObjectInfo
+func (s *S3Client) ListObjects(ctx context.Context, bucket string) ([]ObjectInfo, error) {
+	var objects []ObjectInfo
 	for obj := range s.client.ListObjects(ctx, bucket, minio.ListObjectsOptions{Recursive: true}) {
 		if obj.Err != nil {
 			return nil, fmt.Errorf("list %s: %w", bucket, obj.Err)
 		}
-		objects = append(objects, obj)
+		objects = append(objects, ObjectInfo{
+			Key:          obj.Key,
+			Size:         obj.Size,
+			LastModified: obj.LastModified,
+		})
 	}
 	return objects, nil
 }
 
 // GetObject returns a reader for the given object. Caller must close it.
-func (s *S3Client) GetObject(ctx context.Context, bucket, key string) (*minio.Object, error) {
+func (s *S3Client) GetObject(ctx context.Context, bucket, key string) (io.ReadCloser, error) {
 	obj, err := s.client.GetObject(ctx, bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("get %s/%s: %w", bucket, key, err)

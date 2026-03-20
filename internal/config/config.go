@@ -17,6 +17,8 @@ type Config struct {
 	EngramAPIURL       string
 	ReconcileInterval  time.Duration
 	MaxRetries         int
+	StorageBackend     string
+	StorageFSRoot      string
 	MetadataFile       string
 	EventLogFile       string
 	EngramAMQPURL      string
@@ -44,6 +46,8 @@ func Load() Config {
 		EngramAPIURL:      os.Getenv("ENGRAM_API_URL"),
 		ReconcileInterval: interval,
 		MaxRetries:        5,
+		StorageBackend:    envOr("STORAGE_BACKEND", "s3"),
+		StorageFSRoot:     envOr("STORAGE_FS_ROOT", ".data/storage"),
 		MetadataFile:      envOr("METADATA_FILE", ".data/metadata.json"),
 		EventLogFile:      envOr("EVENT_LOG_FILE", ".data/events.log"),
 		EngramAMQPURL:     os.Getenv("ENGRAM_AMQP_URL"),

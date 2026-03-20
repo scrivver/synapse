@@ -14,16 +14,16 @@ import (
 
 type Executor struct {
 	queue      *job.Queue
-	s3         *transfer.S3Client
+	mover      transfer.Mover
 	emitter    event.Emitter
 	maxRetries int
 	log        *slog.Logger
 }
 
-func NewExecutor(queue *job.Queue, s3 *transfer.S3Client, emitter event.Emitter, maxRetries int, log *slog.Logger) *Executor {
+func NewExecutor(queue *job.Queue, mover transfer.Mover, emitter event.Emitter, maxRetries int, log *slog.Logger) *Executor {
 	return &Executor{
 		queue:      queue,
-		s3:         s3,
+		mover:      mover,
 		emitter:    emitter,
 		maxRetries: maxRetries,
 		log:        log,
@@ -67,7 +67,7 @@ func (e *Executor) handle(ctx context.Context, d amqp.Delivery) {
 
 	switch j.Type {
 	case job.TypeMoveFile:
-		err = e.s3.MoveFile(ctx, j.Payload.FileID, j.Payload.From, j.Payload.To)
+		err = e.mover.MoveFile(ctx, j.Payload.FileID, j.Payload.From, j.Payload.To)
 	default:
 		log.Error("unknown job type, dropping")
 		_ = d.Nack(false, false)

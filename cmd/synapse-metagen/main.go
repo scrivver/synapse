@@ -44,11 +44,24 @@ func main() {
 
 	switch *source {
 	case "s3":
-		files, err = scanS3(ctx, cfg, *bucket, parsedTags, log)
+		s3, scanErr := transfer.NewS3Client(transfer.S3Config{
+			Endpoint:  cfg.S3Endpoint,
+			AccessKey: cfg.S3AccessKey,
+			SecretKey: cfg.S3SecretKey,
+			UseSSL:    cfg.S3UseSSL,
+		}, log)
+		if scanErr != nil {
+			log.Error("failed to create S3 client", "error", scanErr)
+			os.Exit(1)
+		}
+		files, err = scanStorage(ctx, s3, *bucket, parsedTags, log)
+	case "fs":
+		scanner := transfer.NewFSScanner(cfg.StorageFSRoot, log)
+		files, err = scanStorage(ctx, scanner, *bucket, parsedTags, log)
 	case "dir":
 		files, err = scanDir(*path, *bucket, parsedTags, log)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown source: %s (use dir or s3)\n", *source)
+		fmt.Fprintf(os.Stderr, "unknown source: %s (use dir, fs, or s3)\n", *source)
 		os.Exit(1)
 	}
 	if err != nil {
@@ -72,25 +85,15 @@ func main() {
 	fmt.Fprintf(os.Stderr, "%d files written to %s\n", len(files), *out)
 }
 
-func scanS3(ctx context.Context, cfg config.Config, bucket string, tags []string, log *slog.Logger) ([]metadata.File, error) {
-	s3, err := transfer.NewS3Client(transfer.S3Config{
-		Endpoint:  cfg.S3Endpoint,
-		AccessKey: cfg.S3AccessKey,
-		SecretKey: cfg.S3SecretKey,
-		UseSSL:    cfg.S3UseSSL,
-	}, log)
-	if err != nil {
-		return nil, fmt.Errorf("create S3 client: %w", err)
-	}
-
-	objects, err := s3.ListObjects(ctx, bucket)
+func scanStorage(ctx context.Context, scanner transfer.Scanner, location string, tags []string, log *slog.Logger) ([]metadata.File, error) {
+	objects, err := scanner.ListObjects(ctx, location)
 	if err != nil {
 		return nil, err
 	}
 
 	var files []metadata.File
 	for _, obj := range objects {
-		reader, err := s3.GetObject(ctx, bucket, obj.Key)
+		reader, err := scanner.GetObject(ctx, location, obj.Key)
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +105,7 @@ func scanS3(ctx context.Context, cfg config.Config, bucket string, tags []string
 
 		files = append(files, metadata.File{
 			ID:           obj.Key,
-			Locations:    []string{bucket},
+			Locations:    []string{location},
 			Tags:         tags,
 			Checksum:     checksum,
 			Size:         obj.Size,

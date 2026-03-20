@@ -27,17 +27,28 @@ func main() {
 	defer queue.Close()
 	log.Info("connected to RabbitMQ", "url", cfg.RabbitMQURL)
 
-	s3, err := transfer.NewS3Client(transfer.S3Config{
-		Endpoint:  cfg.S3Endpoint,
-		AccessKey: cfg.S3AccessKey,
-		SecretKey: cfg.S3SecretKey,
-		UseSSL:    cfg.S3UseSSL,
-	}, log)
-	if err != nil {
-		log.Error("failed to create S3 client", "error", err)
+	var mover transfer.Mover
+	switch cfg.StorageBackend {
+	case "fs":
+		mover = transfer.NewFSMover(cfg.StorageFSRoot, log)
+		log.Info("storage backend: filesystem", "root", cfg.StorageFSRoot)
+	case "s3":
+		s3, err := transfer.NewS3Client(transfer.S3Config{
+			Endpoint:  cfg.S3Endpoint,
+			AccessKey: cfg.S3AccessKey,
+			SecretKey: cfg.S3SecretKey,
+			UseSSL:    cfg.S3UseSSL,
+		}, log)
+		if err != nil {
+			log.Error("failed to create S3 client", "error", err)
+			os.Exit(1)
+		}
+		mover = s3
+		log.Info("storage backend: S3", "endpoint", cfg.S3Endpoint)
+	default:
+		log.Error("unknown storage backend", "backend", cfg.StorageBackend)
 		os.Exit(1)
 	}
-	log.Info("S3 client ready", "endpoint", cfg.S3Endpoint)
 
 	var emitter event.Emitter
 	if cfg.EngramAMQPURL != "" {
@@ -55,7 +66,7 @@ func main() {
 		log.Info("event emitter: dev", "log", cfg.EventLogFile, "metadata", cfg.MetadataFile)
 	}
 
-	executor := worker.NewExecutor(queue, s3, emitter, cfg.MaxRetries, log)
+	executor := worker.NewExecutor(queue, mover, emitter, cfg.MaxRetries, log)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
