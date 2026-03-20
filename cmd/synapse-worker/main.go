@@ -8,8 +8,8 @@ import (
 	"syscall"
 
 	"github.com/chunhou/synapse/internal/config"
+	"github.com/chunhou/synapse/internal/event"
 	"github.com/chunhou/synapse/internal/job"
-	"github.com/chunhou/synapse/internal/metadata"
 	"github.com/chunhou/synapse/internal/transfer"
 	"github.com/chunhou/synapse/internal/worker"
 )
@@ -38,15 +38,22 @@ func main() {
 	}
 	log.Info("S3 client ready", "endpoint", cfg.S3Endpoint)
 
-	var meta metadata.Provider
-	if cfg.EngramAPIURL != "" {
-		meta = metadata.NewEngramClient(cfg.EngramAPIURL)
-		log.Info("metadata client configured", "url", cfg.EngramAPIURL)
+	var emitter event.Emitter
+	if cfg.EngramAMQPURL != "" {
+		em, err := event.NewEngramEmitter(cfg.EngramAMQPURL, cfg.EngramExchange, cfg.EngramRoutingKey)
+		if err != nil {
+			log.Error("failed to create engram emitter", "error", err)
+			os.Exit(1)
+		}
+		defer em.Close()
+		emitter = em
+		log.Info("event emitter: engram", "exchange", cfg.EngramExchange, "routing_key", cfg.EngramRoutingKey)
 	} else {
-		log.Info("no ENGRAM_API_URL set, metadata updates disabled")
+		emitter = event.NewLogFileEmitter(cfg.EventLogFile)
+		log.Info("event emitter: log file", "path", cfg.EventLogFile)
 	}
 
-	executor := worker.NewExecutor(queue, s3, meta, cfg.MaxRetries, log)
+	executor := worker.NewExecutor(queue, s3, emitter, cfg.MaxRetries, log)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

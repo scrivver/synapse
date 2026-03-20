@@ -17,6 +17,11 @@ type Config struct {
 	EngramAPIURL       string
 	ReconcileInterval  time.Duration
 	MaxRetries         int
+	MetadataFile       string
+	EventLogFile       string
+	EngramAMQPURL      string
+	EngramExchange     string
+	EngramRoutingKey   string
 }
 
 func Load() Config {
@@ -39,6 +44,11 @@ func Load() Config {
 		EngramAPIURL:      os.Getenv("ENGRAM_API_URL"),
 		ReconcileInterval: interval,
 		MaxRetries:        5,
+		MetadataFile:      envOr("METADATA_FILE", ".data/metadata.json"),
+		EventLogFile:      envOr("EVENT_LOG_FILE", ".data/events.log"),
+		EngramAMQPURL:     os.Getenv("ENGRAM_AMQP_URL"),
+		EngramExchange:    envOr("ENGRAM_EXCHANGE", "engram.events"),
+		EngramRoutingKey:  envOr("ENGRAM_ROUTING_KEY", "synapse.move"),
 	}
 }
 

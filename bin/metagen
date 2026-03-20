@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -z "${DATA_DIR:-}" ]; then
+  echo "ERROR: DATA_DIR is not set. Are you in the dev shell? (nix develop)" >&2
+  exit 1
+fi
+
+source load-infra-env
+
+exec go run ./cmd/synapse-metagen "$@"

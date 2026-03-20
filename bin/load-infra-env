@@ -31,3 +31,8 @@ if [ -f "$MINIO_API_PORT_FILE" ]; then
   echo "S3_HOT_BUCKET=$S3_HOT_BUCKET"
   echo "S3_COLD_BUCKET=$S3_COLD_BUCKET"
 fi
+
+export METADATA_FILE="$DATA_DIR/metadata.json"
+export EVENT_LOG_FILE="$DATA_DIR/events.log"
+echo "METADATA_FILE=$METADATA_FILE"
+echo "EVENT_LOG_FILE=$EVENT_LOG_FILE"

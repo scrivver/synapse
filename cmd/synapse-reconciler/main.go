@@ -17,9 +17,13 @@ func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	cfg := config.Load()
 
-	if cfg.EngramAPIURL == "" {
-		log.Error("ENGRAM_API_URL is required for the reconciler")
-		os.Exit(1)
+	var meta metadata.Provider
+	if cfg.EngramAPIURL != "" {
+		meta = metadata.NewEngramClient(cfg.EngramAPIURL)
+		log.Info("metadata: engram", "url", cfg.EngramAPIURL)
+	} else {
+		meta = metadata.NewJSONFileProvider(cfg.MetadataFile)
+		log.Info("metadata: json file", "path", cfg.MetadataFile)
 	}
 
 	queue, err := job.NewQueue(cfg.RabbitMQURL)
@@ -29,9 +33,6 @@ func main() {
 	}
 	defer queue.Close()
 	log.Info("connected to RabbitMQ", "url", cfg.RabbitMQURL)
-
-	meta := metadata.NewEngramClient(cfg.EngramAPIURL)
-	log.Info("metadata client configured", "url", cfg.EngramAPIURL)
 
 	rules := reconciler.DefaultRules(cfg.HotBucket, cfg.ColdBucket)
 	r := reconciler.New(meta, queue, rules, cfg.ReconcileInterval, log)

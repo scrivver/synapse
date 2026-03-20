@@ -3,27 +3,28 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	"github.com/chunhou/synapse/internal/event"
 	"github.com/chunhou/synapse/internal/job"
-	"github.com/chunhou/synapse/internal/metadata"
 	"github.com/chunhou/synapse/internal/transfer"
 )
 
 type Executor struct {
 	queue      *job.Queue
 	s3         *transfer.S3Client
-	meta       metadata.Provider // nil if no metadata provider configured
+	emitter    event.Emitter
 	maxRetries int
 	log        *slog.Logger
 }
 
-func NewExecutor(queue *job.Queue, s3 *transfer.S3Client, meta metadata.Provider, maxRetries int, log *slog.Logger) *Executor {
+func NewExecutor(queue *job.Queue, s3 *transfer.S3Client, emitter event.Emitter, maxRetries int, log *slog.Logger) *Executor {
 	return &Executor{
 		queue:      queue,
 		s3:         s3,
-		meta:       meta,
+		emitter:    emitter,
 		maxRetries: maxRetries,
 		log:        log,
 	}
@@ -87,15 +88,21 @@ func (e *Executor) handle(ctx context.Context, d amqp.Delivery) {
 				log.Error("failed to requeue job", "error", pubErr)
 			}
 		}
-		// Ack the original delivery — we've already republished.
 		_ = d.Ack(false)
 		return
 	}
 
-	// Success: optionally update metadata.
-	if e.meta != nil {
-		if metaErr := e.meta.AddLocation(ctx, j.Payload.FileID, j.Payload.To); metaErr != nil {
-			log.Warn("failed to update metadata (non-fatal)", "error", metaErr)
+	// Emit event after successful transfer.
+	if e.emitter != nil {
+		evt := event.MoveCompleted{
+			JobID:     j.ID,
+			FileID:    j.Payload.FileID,
+			From:      j.Payload.From,
+			To:        j.Payload.To,
+			Timestamp: time.Now(),
+		}
+		if emitErr := e.emitter.EmitMoveCompleted(ctx, evt); emitErr != nil {
+			log.Warn("failed to emit event (non-fatal)", "error", emitErr)
 		}
 	}
 
