@@ -181,6 +181,37 @@ metagen -source s3 -bucket synapse-hot -tags cold -merge
 metagen -source s3 -bucket synapse-hot -tags cold -out /tmp/meta.json
 ```
 
+## Packaged Image Outputs
+
+Synapse owns the package and container outputs for its deployable runtime
+boundaries. Mind Palace root orchestration consumes these outputs and may tag
+the loaded images to platform names such as `mind-palace-synapse-worker:latest`.
+
+| Output | Image | Purpose |
+|--------|-------|---------|
+| `synapse` | — | Go package containing `synapse-worker`, `synapse-reconciler`, and `synapse-metagen` |
+| `worker-container` | `synapse-worker:latest` | Transfer worker image |
+| `reconciler-container` | `synapse-reconciler:latest` | Reconciler image |
+
+Build the images from this repository:
+
+```bash
+nix build .#worker-container --no-link --print-out-paths
+nix build .#reconciler-container --no-link --print-out-paths
+```
+
+The worker image runs `synapse-worker` and includes a
+`synapse-worker-healthcheck` PID liveness check. It accepts `RABBITMQ_URL`,
+`S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_HOT_BUCKET`,
+`S3_COLD_BUCKET`, `STORAGE_BACKEND`, and `STORAGE_FS_ROOT` from the runtime
+environment.
+
+The reconciler image runs `synapse-reconciler` and includes a
+`synapse-reconciler-healthcheck` PID liveness check. It accepts `RABBITMQ_URL`,
+`ENGRAM_API_URL`, `ENGRAM_AMQP_URL`, `RECONCILE_INTERVAL`, and the shared
+storage variables from the runtime environment. In packaged Mind Palace
+dogfooding, `ENGRAM_API_URL` should point at the Engram API service.
+
 ### How It Works
 
 1. Scans the source, computing SHA-256 checksums and recording file sizes.

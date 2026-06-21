@@ -23,6 +23,13 @@
 	devShellNix = import ./shells/dev.nix { inherit pkgs infraShell; };
 	in
 	{
+	packages = {
+	  synapse = import ./nix/synapse.nix { inherit pkgs; };
+	  worker-container = import ./nix/worker-container.nix { inherit pkgs; };
+	  reconciler-container = import ./nix/reconciler-container.nix { inherit pkgs; };
+	  default = self.packages.${system}.synapse;
+	};
+
 	devShells = rec {
 	  infra   = infraShell;
 	  dev     = devShellNix;

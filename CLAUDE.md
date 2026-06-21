@@ -15,6 +15,24 @@ go run ./cmd/synapse-reconciler  # run the reconciler
 go run ./cmd/synapse-metagen     # generate metadata from files
 ```
 
+## Packaged Outputs
+
+Synapse owns its deployment package and image outputs:
+
+- `.#synapse`: Go package containing `synapse-worker`, `synapse-reconciler`,
+  and `synapse-metagen`.
+- `.#worker-container`: `synapse-worker:latest`, running `synapse-worker` with
+  `synapse-worker-healthcheck` as a PID liveness helper.
+- `.#reconciler-container`: `synapse-reconciler:latest`, running
+  `synapse-reconciler` with `synapse-reconciler-healthcheck` as a PID liveness
+  helper.
+
+Mind Palace root deployment builds these child outputs with
+`nix build path:$PROJECT_ROOT/synapse#worker-container` and
+`nix build path:$PROJECT_ROOT/synapse#reconciler-container`, then tags the
+loaded images to the root Compose names. Keep Synapse Go module packaging,
+entrypoints, and liveness helpers in this repository.
+
 ## Dev Environment
 
 Infrastructure (RabbitMQ + MinIO) is managed via Nix + process-compose:
