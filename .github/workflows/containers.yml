@@ -1,0 +1,108 @@
+name: Containers
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/containers.yml"
+      - "**/*.go"
+      - "**/*.nix"
+      - "go.mod"
+      - "go.sum"
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+    paths:
+      - ".github/workflows/containers.yml"
+      - "**/*.go"
+      - "**/*.nix"
+      - "go.mod"
+      - "go.sum"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: containers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - derivation: worker-container
+            image: synapse-worker
+          - derivation: reconciler-container
+            image: synapse-reconciler
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build image tarball
+        run: nix build ".#${{ matrix.derivation }}" --print-out-paths --no-link > image-path.txt
+
+      - name: Load image
+        run: docker load --input "$(cat image-path.txt)"
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag image
+        if: github.event_name != 'pull_request'
+        run: |
+          owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          image="ghcr.io/$owner/${{ matrix.image }}"
+          source="${{ matrix.image }}:latest"
+          short_sha="$(printf '%s' '${{ github.sha }}' | cut -c1-12)"
+
+          docker tag "$source" "$image:sha-$short_sha"
+
+          if [ '${{ github.ref }}' = 'refs/heads/main' ]; then
+            docker tag "$source" "$image:latest"
+          fi
+
+          if printf '%s' '${{ github.ref }}' | grep -q '^refs/tags/'; then
+            tag="${GITHUB_REF#refs/tags/}"
+            docker tag "$source" "$image:$tag"
+          fi
+
+      - name: Push image
+        if: github.event_name != 'pull_request'
+        run: |
+          owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          image="ghcr.io/$owner/${{ matrix.image }}"
+          short_sha="$(printf '%s' '${{ github.sha }}' | cut -c1-12)"
+
+          docker push "$image:sha-$short_sha"
+
+          if [ '${{ github.ref }}' = 'refs/heads/main' ]; then
+            docker push "$image:latest"
+          fi
+
+          if printf '%s' '${{ github.ref }}' | grep -q '^refs/tags/'; then
+            tag="${GITHUB_REF#refs/tags/}"
+            docker push "$image:$tag"
+          fi
